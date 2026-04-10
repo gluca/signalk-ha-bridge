@@ -5,6 +5,22 @@ All notable changes to the SignalK HA Bridge project will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-04-10
+
+### Fixed
+- **WebSocket reconnection failure** - Error events now terminate the socket and trigger reconnect (previously the bridge could go permanently silent after a network disruption)
+- **No connection timeout** - Added 15s handshake timeout so the bridge doesn't hang forever if SignalK is unreachable during connect
+- **Unhandled async errors** - Replaced async forEach with for...of loops so errors are properly caught; added global unhandledRejection handler
+- **Incomplete shutdown** - SIGINT/SIGTERM now disconnect both SignalK WebSocket and MQTT client
+
+### Changed
+- **Exponential backoff** on reconnect: 2s, 4s, 8s, ... up to 60s cap (was fixed 5s). Resets on successful connection
+- **Standardized HTTP** - sensor-converter.js now uses Node http module instead of global fetch() for consistency with device-registry.js and broader Node version compatibility
+- Removed hardcoded fallback IP in device-registry.js (uses localhost as default)
+
+### Removed
+- **Deleted signalk-parser.js** - Dead code that was never imported or used (bridge uses WebSocket, not MQTT subscription)
+
 ## [1.3.2] - 2025-11-20
 
 ### Fixed

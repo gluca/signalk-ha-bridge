@@ -7,6 +7,11 @@ const HADiscovery = require('./ha-discovery');
 const SensorConverter = require('./sensor-converter');
 const DeviceRegistry = require('./device-registry');
 
+// Catch unhandled promise rejections so they don't silently kill the process
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason);
+});
+
 // Load configuration
 const configPath = path.join(__dirname, '..', 'app-config.json');
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
@@ -90,7 +95,7 @@ signalKClient.on('hello', (message) => {
   }
 });
 
-signalKClient.on('delta', (data) => {
+signalKClient.on('delta', async (data) => {
   try {
     // Wait for device registry to load before processing deltas
     if (!deviceRegistryReady) {
@@ -105,8 +110,8 @@ signalKClient.on('delta', (data) => {
     const context = data.context || 'vessels.self';
 
     // Process each update
-    data.updates.forEach(update => {
-      if (!update.values || update.values.length === 0) return;
+    for (const update of data.updates) {
+      if (!update.values || update.values.length === 0) continue;
 
       // Extract source information from the update
       let source = update.source || update.$source || {};
@@ -119,7 +124,7 @@ signalKClient.on('delta', (data) => {
       const sourceId = source.src || source.label || 'unknown';
       const sourceLabel = source.label || `N2K Source ${sourceId}`;
 
-      update.values.forEach(async ({ path, value, meta }) => {
+      for (const { path, value, meta } of update.values) {
         // Expand objects into separate entities (e.g., attitude.yaw, attitude.pitch, attitude.roll)
         const pathsToProcess = expandObjectPaths(path, value);
 
@@ -150,7 +155,7 @@ signalKClient.on('delta', (data) => {
               ? `${deviceInfo.manufacturer} ${deviceInfo.model}`
               : sourceLabel;
 
-            console.log(`🔍 Discovered: ${sensorConfig.name} (${expandedPath}) on ${deviceName}`);
+            console.log(`Discovered: ${sensorConfig.name} (${expandedPath}) on ${deviceName}`);
           }
 
           // Throttle publishing - max once per second per sensor
@@ -167,15 +172,15 @@ signalKClient.on('delta', (data) => {
             lastPublishTime.set(publishKey, now);
           }
         }
-      });
-    });
+      }
+    }
   } catch (error) {
-    console.error('❌ Error processing SignalK delta:', error.message);
+    console.error('Error processing SignalK delta:', error.message);
   }
 });
 
 signalKClient.on('error', (error) => {
-  console.error('❌ SignalK Error:', error.message);
+  console.error('SignalK error:', error.message);
 });
 
 signalKClient.on('disconnected', () => {
@@ -223,17 +228,15 @@ function expandObjectPaths(path, value) {
 }
 
 // Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down...');
+function shutdown() {
+  console.log('Shutting down...');
+  signalKClient.disconnect();
   mqttClient.disconnect();
   process.exit(0);
-});
+}
 
-process.on('SIGTERM', () => {
-  console.log('\n🛑 Shutting down...');
-  mqttClient.disconnect();
-  process.exit(0);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 // Connect to MQTT broker and SignalK
 mqttClient.connect();

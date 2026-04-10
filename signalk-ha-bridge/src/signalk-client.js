@@ -1,12 +1,16 @@
 const WebSocket = require('ws');
 const EventEmitter = require('events');
 
+const INITIAL_RECONNECT_MS = 2000;
+const MAX_RECONNECT_MS = 60000;
+const HANDSHAKE_TIMEOUT_MS = 15000;
+
 class SignalKClient extends EventEmitter {
   constructor(config) {
     super();
     this.config = config;
     this.ws = null;
-    this.reconnectInterval = 5000;
+    this.reconnectInterval = INITIAL_RECONNECT_MS;
     this.reconnectTimer = null;
     this.shouldReconnect = true;
   }
@@ -17,18 +21,19 @@ class SignalKClient extends EventEmitter {
   connect() {
     const host = this.config.signalk.host || 'localhost';
     const port = this.config.signalk.port || 3000;
-    // Use 'subscribe=self' to get only own vessel data
     const wsUrl = `ws://${host}:${port}/signalk/v1/stream?subscribe=self`;
 
     console.log(`Connecting to SignalK WebSocket: ${wsUrl}`);
 
-    this.ws = new WebSocket(wsUrl);
+    // Clean up any existing socket before creating a new one
+    this.cleanup();
+
+    this.ws = new WebSocket(wsUrl, { handshakeTimeout: HANDSHAKE_TIMEOUT_MS });
 
     this.ws.on('open', () => {
-      console.log('✅ Connected to SignalK WebSocket');
+      console.log('Connected to SignalK WebSocket');
+      this.reconnectInterval = INITIAL_RECONNECT_MS; // Reset backoff on success
       this.emit('connected');
-
-      // Subscribe to only own vessel data (excludes AIS targets and other vessels)
       this.subscribe('vessels.self.*');
     });
 
@@ -37,17 +42,21 @@ class SignalKClient extends EventEmitter {
         const message = JSON.parse(data.toString());
         this.handleMessage(message);
       } catch (error) {
-        console.error('❌ Error parsing SignalK message:', error.message);
+        console.error('Error parsing SignalK message:', error.message);
       }
     });
 
     this.ws.on('error', (error) => {
-      console.error('❌ SignalK WebSocket Error:', error.message);
+      console.error('SignalK WebSocket error:', error.message);
       this.emit('error', error);
+      // Terminate the socket so 'close' fires and triggers reconnect
+      if (this.ws) {
+        this.ws.terminate();
+      }
     });
 
     this.ws.on('close', () => {
-      console.log('🔌 SignalK WebSocket connection closed');
+      console.log('SignalK WebSocket connection closed');
       this.emit('disconnected');
 
       if (this.shouldReconnect) {
@@ -58,22 +67,17 @@ class SignalKClient extends EventEmitter {
 
   /**
    * Handle incoming SignalK message
-   * @param {Object} message - SignalK message
    */
   handleMessage(message) {
-    // Handle different message types
     if (message.updates) {
-      // This is a delta message with updates
       this.emit('delta', message);
     } else if (message.self) {
-      // This is a hello message with server info
       this.emit('hello', message);
     }
   }
 
   /**
    * Subscribe to SignalK paths
-   * @param {string} path - SignalK path pattern (e.g., "vessels.*" or "vessels.self.navigation.*")
    */
   subscribe(path) {
     const subscription = {
@@ -91,15 +95,12 @@ class SignalKClient extends EventEmitter {
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(subscription));
-      console.log(`📡 Subscribed to SignalK path: ${path}`);
+      console.log(`Subscribed to SignalK path: ${path}`);
     }
   }
 
   /**
    * Send PUT request to SignalK (for bidirectional control)
-   * @param {string} path - SignalK path
-   * @param {*} value - Value to set
-   * @returns {Promise<Object>} - Response from SignalK
    */
   async put(path, value) {
     const host = this.config.signalk.host || 'localhost';
@@ -108,9 +109,7 @@ class SignalKClient extends EventEmitter {
 
     const response = await fetch(url, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value })
     });
 
@@ -118,17 +117,34 @@ class SignalKClient extends EventEmitter {
   }
 
   /**
-   * Schedule reconnection attempt
+   * Schedule reconnection with exponential backoff
    */
   scheduleReconnect() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
     }
 
-    console.log(`🔄 Reconnecting to SignalK in ${this.reconnectInterval / 1000}s...`);
+    const delaySec = (this.reconnectInterval / 1000).toFixed(0);
+    console.log(`Reconnecting to SignalK in ${delaySec}s...`);
+
     this.reconnectTimer = setTimeout(() => {
       this.connect();
     }, this.reconnectInterval);
+
+    // Exponential backoff: 2s → 4s → 8s → ... → 60s cap
+    this.reconnectInterval = Math.min(this.reconnectInterval * 2, MAX_RECONNECT_MS);
+  }
+
+  /**
+   * Clean up existing WebSocket without triggering reconnect
+   */
+  cleanup() {
+    if (this.ws) {
+      // Remove listeners to avoid triggering reconnect from cleanup
+      this.ws.removeAllListeners();
+      this.ws.terminate();
+      this.ws = null;
+    }
   }
 
   /**
@@ -142,10 +158,7 @@ class SignalKClient extends EventEmitter {
       this.reconnectTimer = null;
     }
 
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    this.cleanup();
   }
 }
 

@@ -1,3 +1,5 @@
+const http = require('http');
+
 class SensorConverter {
   constructor(config) {
     this.config = config;
@@ -41,59 +43,59 @@ class SensorConverter {
   }
 
   /**
-   * Fetch meta information from SignalK REST API and cache it
-   * Handles nested properties (e.g., navigation.attitude.yaw where yaw is a property)
-   * @param {string} signalkPath - SignalK path
-   * @returns {Promise<Object>} - Meta object from SignalK
+   * Fetch JSON from a URL using http.get
+   */
+  _httpGetJson(url) {
+    return new Promise((resolve, reject) => {
+      const req = http.get(url, (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          return resolve(null);
+        }
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try { resolve(JSON.parse(data)); }
+          catch { resolve(null); }
+        });
+      });
+      req.on('error', () => resolve(null));
+      req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+    });
+  }
+
+  /**
+   * Fetch meta information from SignalK REST API and cache it.
+   * Handles nested properties (e.g., navigation.attitude.yaw where yaw is a property
+   * of the parent navigation.attitude path).
    */
   async fetchMeta(signalkPath) {
-    // Check cache first
     if (this.metaCache.has(signalkPath)) {
       return this.metaCache.get(signalkPath);
     }
 
-    try {
-      const host = this.config.signalk?.host || 'localhost';
-      const port = this.config.signalk?.port || 3000;
-      const url = `http://${host}:${port}/signalk/v1/api/vessels/self/${signalkPath.replace(/\./g, '/')}`;
+    const host = this.config.signalk?.host || 'localhost';
+    const port = this.config.signalk?.port || 3000;
+    const baseUrl = `http://${host}:${port}/signalk/v1/api/vessels/self`;
 
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        let meta = data.meta || {};
+    const data = await this._httpGetJson(`${baseUrl}/${signalkPath.replace(/\./g, '/')}`);
+    let meta = data?.meta || {};
 
-        // Check if meta has this as a direct property, or if we need to look in parent
-        // E.g., for navigation.attitude.yaw, meta might be at navigation.attitude with properties.yaw
-        if (Object.keys(meta).length === 0 && signalkPath.includes('.')) {
-          // Try parent path
-          const parts = signalkPath.split('.');
-          const lastPart = parts.pop();
-          const parentPath = parts.join('.');
+    // If no meta found, try the parent path for nested properties
+    if (Object.keys(meta).length === 0 && signalkPath.includes('.')) {
+      const parts = signalkPath.split('.');
+      const lastPart = parts.pop();
+      const parentPath = parts.join('.');
 
-          const parentUrl = `http://${host}:${port}/signalk/v1/api/vessels/self/${parentPath.replace(/\./g, '/')}`;
-          const parentResponse = await fetch(parentUrl);
-          if (parentResponse.ok) {
-            const parentData = await parentResponse.json();
-            const parentMeta = parentData.meta || {};
-
-            // Check if parent has properties.{lastPart}
-            if (parentMeta.properties && parentMeta.properties[lastPart]) {
-              meta = parentMeta.properties[lastPart];
-            }
-          }
-        }
-
-        this.metaCache.set(signalkPath, meta);
-        return meta;
+      const parentData = await this._httpGetJson(`${baseUrl}/${parentPath.replace(/\./g, '/')}`);
+      const parentMeta = parentData?.meta || {};
+      if (parentMeta.properties && parentMeta.properties[lastPart]) {
+        meta = parentMeta.properties[lastPart];
       }
-    } catch (error) {
-      // Silently fail - meta is optional
     }
 
-    // Return empty meta object and cache it
-    const emptyMeta = {};
-    this.metaCache.set(signalkPath, emptyMeta);
-    return emptyMeta;
+    this.metaCache.set(signalkPath, meta);
+    return meta;
   }
 
   /**

@@ -11,7 +11,7 @@ class DeviceRegistry {
    * @returns {Promise<void>}
    */
   async fetchDevices() {
-    const signalkHost = this.config.signalk.host || '10.147.17.208';
+    const signalkHost = this.config.signalk.host || 'localhost';
     const signalkPort = this.config.signalk.port || 3000;
     const url = `http://${signalkHost}:${signalkPort}/signalk/v1/api/sources`;
 
