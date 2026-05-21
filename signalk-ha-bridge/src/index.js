@@ -69,7 +69,7 @@ async function initializeDeviceRegistry() {
 
 // Handle MQTT connection (for Home Assistant integration)
 mqttClient.on('connected', () => {
-  console.log('✅ Connected to MQTT broker (Home Assistant)');
+  console.log('✅ Connected to MQTT broker');
 });
 
 mqttClient.on('error', (error) => {

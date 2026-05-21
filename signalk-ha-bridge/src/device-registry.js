@@ -37,6 +37,8 @@ class DeviceRegistry {
             console.log(`📋 Loaded ${this.devices.size} N2K devices from SignalK`);
             resolve();
           } catch (error) {
+            console.warn('url:',url);
+            console.warn('data:',data.toString());
             console.warn('⚠️  Failed to parse SignalK sources:', error.message);
             resolve(); // Don't fail startup if API is unavailable
           }

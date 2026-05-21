@@ -23,7 +23,7 @@ class SignalKClient extends EventEmitter {
     const port = this.config.signalk.port || 3000;
     const wsUrl = `ws://${host}:${port}/signalk/v1/stream?subscribe=self`;
 
-    console.log(`Connecting to SignalK WebSocket: ${wsUrl}`);
+    console.log(`🔄 Connecting to SignalK WebSocket: ${wsUrl}`);
 
     // Clean up any existing socket before creating a new one
     this.cleanup();
@@ -31,7 +31,6 @@ class SignalKClient extends EventEmitter {
     this.ws = new WebSocket(wsUrl, { handshakeTimeout: HANDSHAKE_TIMEOUT_MS });
 
     this.ws.on('open', () => {
-      console.log('Connected to SignalK WebSocket');
       this.reconnectInterval = INITIAL_RECONNECT_MS; // Reset backoff on success
       this.emit('connected');
       this.subscribe('vessels.self.*');

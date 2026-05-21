@@ -11,9 +11,9 @@ class MQTTClient extends EventEmitter {
   connect() {
     const options = {
       clientId: this.config.mqtt.clientId,
-      clean: true,
+      clean: false,
       reconnectPeriod: 5000,
-      connectTimeout: 30000,
+      connectTimeout: 3000,
     };
 
     // Add credentials if provided
@@ -24,7 +24,8 @@ class MQTTClient extends EventEmitter {
       options.password = this.config.mqtt.password;
     }
 
-    const brokerUrl = `${this.config.mqtt.broker}:${this.config.mqtt.port}`;
+    const brokerUrl = `mqtt://${this.config.mqtt.broker}:${this.config.mqtt.port}`;
+    console.log(`🔄 Connecting to MQTT broker ${brokerUrl} with options: %j`,options);
     this.client = mqtt.connect(brokerUrl, options);
 
     this.client.on('connect', () => {

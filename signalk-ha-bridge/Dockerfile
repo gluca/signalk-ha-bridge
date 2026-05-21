@@ -13,7 +13,8 @@ RUN \
         xz=5.8.3-r0 \
     \
     && apk add --no-cache \
-        bash=5.3.3-r1
+        bash=5.3.3-r1 \
+        jq=1.8.1-r0 
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -30,6 +31,7 @@ COPY src ./src
 COPY app-config.json ./
 
 # Install dependencies
+RUN npm install dotenv  --save
 RUN npm ci --only=production
 
 # Copy run script
@@ -37,3 +39,4 @@ COPY run.sh /
 RUN chmod a+x /run.sh
 
 CMD [ "/run.sh" ]
+

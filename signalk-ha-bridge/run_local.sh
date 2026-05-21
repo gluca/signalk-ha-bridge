@@ -6,7 +6,7 @@
 # Ensures persistent data directory exists even after HA migrations/restores
 # ============================================================================
 ADDON_SLUG="signalk-ha-bridge"  # matches config.yaml slug
-DATA_DIR="/data"
+DATA_DIR="./data"
 
 # Create data directory if missing (happens after migrations)
 if [[ ! -d "$DATA_DIR" ]]; then
@@ -42,6 +42,6 @@ echo "MQTT Broker: ${MQTT_BROKER}:${MQTT_PORT}"
 echo "Raw Mode: ${RAW_MODE}"
 
 # Start the Node.js application
-cd /app
+# cd /app
 
 exec node src/index.js
