@@ -1,13 +1,13 @@
 {
   "mqtt": {
-    "broker": "mqtt://10.147.17.65",
+    "broker": "mqtt://192.168.69.138",
     "port": 1883,
     "clientId": "n2k-ha-bridge"
   },
   "signalk": {
     "topicPrefix": "vessels",
     "vesselId": "urn:mrn:signalk:uuid:03e9aeb2-0ede-488b-b5fc-5a79921a2c68",
-    "host": "10.147.17.208",
+    "host": "192.168.69.138",
     "port": 3000
   },
   "homeassistant": {

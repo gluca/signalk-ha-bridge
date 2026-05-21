@@ -1,4 +1,4 @@
-ARG BUILD_FROM=ghcr.io/hassio-addons/base:15.0.1
+ARG BUILD_FROM=alpine:3.23.4
 FROM ${BUILD_FROM}
 
 # Set shell

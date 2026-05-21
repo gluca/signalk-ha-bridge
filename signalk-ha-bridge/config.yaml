@@ -13,12 +13,12 @@ init: false
 startup: application
 boot: auto
 options:
-  signalk_host: "10.147.17.208"
+  signalk_host: "192.168.69.138"
   signalk_port: 3000
-  mqtt_broker: "mqtt://10.147.17.65"
+  mqtt_broker: "mqtt://192.168.69.138"
   mqtt_port: 1883
-  mqtt_username: "n2khabridge"
-  mqtt_password: "!N2KMQTTBridge1"
+  mqtt_username: ""
+  mqtt_password: ""
   raw_mode: false
 schema:
   signalk_host: str
